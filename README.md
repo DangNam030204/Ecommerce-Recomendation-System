@@ -1,73 +1,79 @@
 # BeautySeq Recommender Web Demo
 
-Web demo nay minh hoa he thong goi y san pham thuong mai dien tu tren bo du lieu Amazon Beauty. Demo su dung `Popularity` cho nguoi dung moi va chuyen sang `BSARec` khi da co du chuoi hanh vi.
+This project demonstrates an e-commerce product recommendation system on the Amazon Beauty dataset. The web demo uses `Popularity` for cold-start users and switches to `BSARec` once the user has enough product interactions.
 
-## Muc tieu
+## Goals
 
-- Hien thi catalog san pham Beauty.
-- Ghi lai hanh vi nguoi dung khi xem san pham hoac them vao gio hang.
-- Tao goi y ca nhan hoa dua tren chuoi hanh vi gan nhat.
-- Trinh bay ket qua danh gia offline cua cac mo hinh: Popularity, GRU4Rec, SASRec, BERT4Rec va BSARec.
+- Display a Beauty product catalog.
+- Track user behavior such as product views and add-to-cart actions.
+- Generate personalized recommendations from the user's recent behavior sequence.
+- Report offline evaluation results for `Popularity`, `GRU4Rec`, `SASRec`, `BERT4Rec`, and `BSARec`.
 
-## Cach chay
+## How To Run
 
-Chay tu thu muc `Web demo`:
+Install dependencies:
+
+```powershell
+pip install -r requirements.txt
+```
+
+Start the web demo:
 
 ```powershell
 cd "C:\Study\DoAnV2\Web demo"
 python server.py
 ```
 
-Mo trinh duyet:
+Open:
 
 ```text
 http://127.0.0.1:8501
 ```
 
-Tai khoan demo co san:
+Default demo account:
 
 ```text
 demo / demo123
 ```
 
-Co the dang ky tai khoan moi trong giao dien de tao chuoi hanh vi sach khi demo.
+You can also register a new account in the UI. For presentation, a new account is recommended because it gives a clean behavior sequence.
 
-## Luong goi y
+## Recommendation Flow
 
-He thong co 2 che do:
+The system has two recommendation modes:
 
 1. `Popularity`
 
-   Dung khi nguoi dung chua dang nhap hoac co it hon 3 hanh vi san pham. Danh sach duoc xep theo so lan xuat hien cua san pham trong `train_history.csv`.
+   Used when the user is not logged in or has fewer than 3 product behavior events. Products are ranked by interaction frequency in `train_history.csv`.
 
 2. `BSARec`
 
-   Dung tu hanh vi san pham thu 3 tro di. Server lay chuoi item gan nhat cua nguoi dung, dua vao checkpoint BSARec, tinh diem cho cac item va tra ve top-K san pham co diem cao nhat.
+   Used from the 3rd product behavior event onward. The server reads the user's recent item sequence, feeds it into the BSARec checkpoint, scores candidate items, removes already-seen/cart items, and returns the top-ranked products.
 
-Tim kiem va loc danh muc chi la loc catalog, khong phai mo hinh goi y.
+Search and category filtering are catalog filtering features. They are not recommendation models.
 
-## Hanh vi nguoi dung
+## User Behavior Logs
 
-Hanh vi demo duoc luu trong:
+Demo behavior is stored in:
 
 ```text
-demo_events.jsonl
+Web demo/demo_events.jsonl
 ```
 
-Moi dong la mot JSON event, vi du:
+Each line is a JSON event:
 
 ```json
 {"event_id":"evt_xxx","user_id":"demo_xxx","type":"view_product","item_id":"594","query":null,"created_at":"2026-06-01T01:02:31.856002+00:00"}
 ```
 
-Nhung event duoc tinh vao chuoi hanh vi cho BSARec:
+Events used as BSARec behavior signals:
 
 ```text
 view_product
 add_to_cart
 ```
 
-Nhung event khac co the duoc luu nhung khong dua vao chuoi BSARec:
+Other events may be logged but are not used in the BSARec sequence:
 
 ```text
 search
@@ -75,46 +81,41 @@ open_cart
 remove_from_cart
 ```
 
-## Cach BSARec tao goi y
+## How BSARec Generates Recommendations
 
-Luong xu ly trong `server.py`:
+The recommendation logic is implemented in `Web demo/server.py`:
 
-1. Doc event cua user tu `demo_events.jsonl`.
-2. Lay cac item co event `view_product` hoac `add_to_cart`.
-3. Giu toi da 50 item gan nhat.
-4. Neu chuoi co it hon 3 hanh vi, dung `Popularity`.
-5. Neu chuoi co tu 3 hanh vi, dua chuoi vao BSARec.
-6. Model tinh diem cho toan bo item trong khong gian embedding.
-7. Loai cac item nguoi dung da xem hoac da co trong gio hang.
-8. Lay top-K item diem cao nhat va tra ve cho web.
+1. Read the user's events from `demo_events.jsonl`.
+2. Keep only `view_product` and `add_to_cart` item events.
+3. Keep up to the 50 most recent item IDs.
+4. Use `Popularity` if the sequence has fewer than 3 events.
+5. Use `BSARec` if the sequence has at least 3 events.
+6. Score all items in the BSARec item embedding space.
+7. Exclude items already viewed or already in the cart.
+8. Return the top-K items to the web UI.
 
-## File quan trong
-
-```text
-server.py                         Backend API va luong goi y
-app.js                            Logic frontend
-index.html                        Giao dien web
-styles.css                        CSS giao dien
-items.csv                         Thong tin co ban san pham
-item_details.csv                  Mo ta, store, category, price
-item_images.csv                   Anh san pham
-train_history.csv                 Lich su dung de tinh popularity
-metrics.csv                       Bang ket qua danh gia offline
-demo_users.json                   Tai khoan demo
-demo_carts.json                   Gio hang demo
-demo_events.jsonl                 Log hanh vi demo
-beauty_recommender_outputs/       Artifact danh gia va cau hinh mo hinh
-```
-
-Checkpoint BSARec duoc load tu:
+## Important Files
 
 ```text
-..\BSARec-main\src\output\BSARec_Beauty_best.pt
+Web demo/server.py                         Backend API and recommendation logic
+Web demo/app.js                            Frontend logic
+Web demo/index.html                        Web UI
+Web demo/styles.css                        UI styles
+Web demo/items.csv                         Basic product metadata
+Web demo/item_details.csv                  Store, category, description, price
+Web demo/item_images.csv                   Product image URLs
+Web demo/train_history.csv                 Training interaction history for popularity
+Web demo/metrics.csv                       Offline evaluation results
+Web demo/demo_users.json                   Demo user accounts
+Web demo/demo_carts.json                   Demo cart state
+Web demo/demo_events.jsonl                 Demo behavior logs
+Web demo/beauty_recommender_outputs/       Model/evaluation artifacts
+BSARec-main/src/output/BSARec_Beauty_best.pt  BSARec checkpoint
 ```
 
-## Ket qua danh gia
+## Evaluation Results
 
-Ket qua chinh nam trong `metrics.csv`.
+Main results are stored in `Web demo/metrics.csv`.
 
 | Model | HR@10 | NDCG@10 | MRR |
 |---|---:|---:|---:|
@@ -124,11 +125,11 @@ Ket qua chinh nam trong `metrics.csv`.
 | BERT4Rec | 0.075661 | 0.042717 | 0.039234 |
 | BSARec | 0.095023 | 0.057535 | 0.052632 |
 
-BSARec dat ket qua cao nhat tren cac chi so HR@K, NDCG@K va MRR. Dieu nay cho thay mo hinh hoc duoc tin hieu tu chuoi hanh vi tot hon cac baseline.
+BSARec achieves the best result across HR@K, NDCG@K, and MRR, showing that it learns useful sequential behavior signals beyond simple popularity.
 
-## Goi y kich ban demo
+## Suggested Demo Scenario
 
-Nen tao tai khoan moi de chuoi hanh vi sach, sau do click cac san pham cung chu de. Vi du nhom skin care/body care:
+Use a new account, then click products from a consistent theme. Example skin care/body care sequence:
 
 ```text
 1089  Liquid Trust
@@ -138,16 +139,16 @@ Nen tao tai khoan moi de chuoi hanh vi sach, sau do click cac san pham cung chu 
 62    Witch Vera Gel
 ```
 
-Sau khi click, quay ve trang chu. Neu banner hien `BSARec`, co the giai thich:
+After clicking these products, return to the home page. If the model banner shows `BSARec`, explain:
 
 ```text
-Nguoi dung vua xem lien tiep cac san pham skin care/body care/grooming.
-BSARec dung chuoi hanh vi nay de xep hang lai san pham va uu tien cac item co kha nang phu hop tiep theo.
+The user has viewed several skin care, body care, and grooming products.
+BSARec uses this behavior sequence to re-rank candidate products and recommend items that are likely to be relevant next.
 ```
 
-## Luu y khi bao cao
+## Notes For Presentation
 
-- BSARec khong phai bo loc theo tu khoa hay theo danh muc.
-- Model hoc mau chuoi hanh vi: sau khi nguoi dung tuong tac voi cac item A, B, C thi item nao co kha nang xuat hien tiep theo.
-- Mot so goi y co the nhin khac danh muc vi du lieu Amazon Beauty co nhieu san pham nhieu va nhieu title khong sach.
-- Khi demo, nen dung tai khoan moi va click cac san pham cung chu de de ket qua de giai thich hon.
+- BSARec is not a keyword filter or a category filter.
+- It learns sequential patterns: after a user interacts with items A, B, and C, which item is likely to come next.
+- Some recommendations may look noisy because the Amazon Beauty catalog contains mixed categories and imperfect product titles.
+- For a clearer demo, use a new account and click products from the same theme before showing the recommendation page.
